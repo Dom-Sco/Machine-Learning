@@ -1,2 +1,2 @@
 # Machine-Learning
-Machine learning algorithm implementations
+This repository is a collection of my implementations of machine learning algorithms.
