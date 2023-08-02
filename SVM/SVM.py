@@ -37,7 +37,8 @@ def PEGASOS(x,y,lr,maxiter,epsilon):
         else:
             w = (1-eta*lr)*w
         loss = SVM_Hinge_Loss(w,x,y,lr)
-        print("Iteration:",i,"Loss:",loss)
+        if (i%1000==1 or i==maxiter):
+            print("Iteration:",i,"Loss:",loss)
         if(loss<epsilon):
             break
         i += 1
@@ -48,15 +49,17 @@ def PEGASOS(x,y,lr,maxiter,epsilon):
 
 def h_sum(m,i,j):
     h = 0
-    for k in range(j+1):
-        h += 2**(m-2-k)
-    h -= (i+j-2)
+    
+    for k in range(j-i):
+        h += m-j-k
+        
     return h
 
 def BDTree(x,H,m):
-    j, l, h = 1, 2, 1
+    j, l, h = 0, 1, 0
     for i in range(1,m):
-        if np.dot(H[h],x)>=0:
+        print(h)
+        if np.dot(H[h],x)>=1:
             c = j
             l+=1
             h+=1
@@ -91,5 +94,33 @@ def Data_Clean(X,y,c1,c2):
     return X, y
 
 X1, y1 = Data_Clean(X,y,0,1)
+X2, y2 = Data_Clean(X,y,0,2)
+X3, y3 = Data_Clean(X,y,1,2)
 
-w = PEGASOS(X1,y1,0.005,10000,10**(-5))
+w1 = PEGASOS(X1,y1,0.005,40,10**(-5))
+w2 = PEGASOS(X2,y2,0.005,40,10**(-5))
+w3 = PEGASOS(X3,y3,0.005,40,10**(-5))
+
+#Now we define a function for inference
+def test(w,X,y):
+    X = np.delete(X,0,1)
+    out = X@w[1:]+w[0]
+    out[out>=1] = 1
+    out[out<=-1] = -1
+    return out
+
+inference1 = test(w1,X1,y1)
+inference2 = test(w2,X2,y2)
+inference3 = test(w3,X3,y3)
+
+print("Accuracy for 0 and 1 is:",(sum(inference1==y1)/len(y1))*100)
+print("Accuracy for 0 and 2 is:",(sum(inference2==y2)/len(y2))*100)
+print("Accuracy for 1 and 2 is:",(sum(inference3==y3)/len(y3))*100)
+
+H = [w1,w2,w3]
+X_full = np.concatenate((np.ones((X.shape[0],1)),X),axis=1)
+
+predictions = []
+
+for i in range(X.shape[0]):
+    predictions.append(BDTree(X_full[i],H,3))
