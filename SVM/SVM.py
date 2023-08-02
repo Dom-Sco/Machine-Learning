@@ -10,8 +10,8 @@
 #This will be used to train m choose 2 seperating hyperplanes
 #Between each of the classes of our dataset
 
-#The decision tree algorithm will also be implemented so that
-#We can get classification for multiple classes
+#To decide between multiple classes we will get the output of each of the m choose 2
+#classifiers and take the class that appears the most as the prediction
 
 
 import numpy as np
@@ -45,31 +45,24 @@ def PEGASOS(x,y,lr,maxiter,epsilon):
     
     return w
         
-#now we implement the binary decision tree algorithm
+#now we implement the prediction algorithm
 
-def h_sum(m,i,j):
-    h = 0
-    
-    for k in range(j-i):
-        h += m-j-k
-        
-    return h
 
-def BDTree(x,H,m):
-    j, l, h = 0, 1, 0
-    for i in range(1,m):
-        print(h)
-        if np.dot(H[h],x)>=1:
-            c = j
-            l+=1
-            h+=1
+def SVM_Prediction(x,H,m):
+    j, l = 0, 1
+    classes = []
+    for i in range(len(H)):
+        if np.dot(H[i],x)>=1:
+            classes.append(j)
         else:
-            c = l
-            j=l
-            l+=1
-            h += h_sum(m,i,j)
+            classes.append(l)
+        
+        l+=1
+        if (l==m):
+            j+=1
+            l = j+1
     
-    return c
+    return max(classes,key=classes.count)
 
 
 #Now we test the algorithm on the iris dataset
@@ -97,25 +90,9 @@ X1, y1 = Data_Clean(X,y,0,1)
 X2, y2 = Data_Clean(X,y,0,2)
 X3, y3 = Data_Clean(X,y,1,2)
 
-w1 = PEGASOS(X1,y1,0.005,40,10**(-5))
-w2 = PEGASOS(X2,y2,0.005,40,10**(-5))
-w3 = PEGASOS(X3,y3,0.005,40,10**(-5))
-
-#Now we define a function for inference
-def test(w,X,y):
-    X = np.delete(X,0,1)
-    out = X@w[1:]+w[0]
-    out[out>=1] = 1
-    out[out<=-1] = -1
-    return out
-
-inference1 = test(w1,X1,y1)
-inference2 = test(w2,X2,y2)
-inference3 = test(w3,X3,y3)
-
-print("Accuracy for 0 and 1 is:",(sum(inference1==y1)/len(y1))*100)
-print("Accuracy for 0 and 2 is:",(sum(inference2==y2)/len(y2))*100)
-print("Accuracy for 1 and 2 is:",(sum(inference3==y3)/len(y3))*100)
+w1 = PEGASOS(X1,y1,0.005,400,10**(-5))
+w2 = PEGASOS(X2,y2,0.005,400,10**(-5))
+w3 = PEGASOS(X3,y3,0.005,400,10**(-5))
 
 H = [w1,w2,w3]
 X_full = np.concatenate((np.ones((X.shape[0],1)),X),axis=1)
@@ -123,4 +100,6 @@ X_full = np.concatenate((np.ones((X.shape[0],1)),X),axis=1)
 predictions = []
 
 for i in range(X.shape[0]):
-    predictions.append(BDTree(X_full[i],H,3))
+    predictions.append(SVM_Prediction(X_full[i],H,3))
+    
+print("Overall accuracy is:",(sum(predictions==y)/len(y))*100,"%")
