@@ -2,74 +2,91 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.special import factorial
 
-#Poisson distribution
-def poi(l,x):
-    results = []
-    for i in range(len(x)):
-        results.append((((l**x[i])*np.exp(-l))/factorial(x[i])))
-    return np.array(results)
-
-#Poisson mixture model
-def PMM(pi, l, x):
-    return np.sum(pi*poi(l,x))
-
-#posterior probabilities
-def tau(g, pi, l, x):
-    taus = []
-    for j in range(g):
-        taus.append(((pi[j]*poi(l[j],x))/np.sum(pi*poi(l,x))))
-    return np.array(taus)
-
-def MMpoiUpdate(g, pi, l, data):
-    n = len(data)
-    taus = tau(g, pi, l, data)
-    pi = []
-    l = []
-    for i in range(g-1):
-        pi.append(np.sum(taus[i])/n)
-        l.append(np.sum(taus[i]*data)/np.sum(taus[i]))
-    pi.append(1-np.sum(pi))
-    l.append(np.sum(taus[g-1]*data)/np.sum(taus[g-1]))
-    return [np.array(pi),np.array(l)]
+class PMM:
+    def __init__(self, counts, maxiter=10):
+        self.maxiter = maxiter
+        self.counts = counts
     
-    
-#MM algorithm for PMM
-def MMpoi(data, pi, l, maxiter, g):
-    updates = [[pi, l]]
-    for i in range(maxiter):
-        updates.append(MMpoiUpdate(g, pi, l, data))
-    return updates
-
-
-#data
-counts = np.array([162,267,271,185,111,61,27,8,3,1])
-
-data = []
-
-for i in range(len(counts)):
-    for j in range(counts[i]):
-        data.append(i)
+    #initialise parameters
+    def initialise(self):
+        ratios = self.counts[:-1]/self.counts[1:]
+        maximums = []
+        for i in range(1,len(ratios)):
+            if ratios[i]>=1 and ratios[i-1]<=1:
+                maximums.append(ratios[i])
+        self.g = len(maximums)
+        self.l = (ratios[:, None] == maximums).argmax(axis=0)
         
-data = np.array(data)
+        landmax = np.append(self.l, len(self.counts))
+        vec = np.array([(x + landmax[i])/2 for i, x in enumerate(landmax) if i > 0])
+        self.pi = vec / np.sum(vec)
+        
+        data = []
+        
+        for i in range(len(counts)):
+            for j in range(counts[i]):
+                data.append(i)
+                
+        data = np.array(data)
+        self.data = data
+        
+    #Poisson distribution
+    def poi(self, x):
+        results = (((self.l**x)*np.exp(-self.l))/factorial(x))
+        return np.array(results)
 
-#parameter learning
-pi = np.array([0.8,0.2])
-l = np.array([1.5, 2.3])
+    #Poisson mixture model (returns all frequencies for given model parameters)
+    def PMM(self):
+        freq = []
+        for i in range(len(self.counts)):
+            freq.append(np.sum(self.pi*self.poi(i)))
+        return np.array(freq)
 
-parameters = MMpoi(data, pi, l, 100, 2)
-pi = parameters[-1][0]
-l = parameters[-1][1]
+    #posterior probabilities
+    def tau(self):
+        taus = []
+        for i in range(len(self.data)):
+            mix = self.pi*self.poi(self.data[i])
+            taus.append(mix/np.sum(mix))
+        return np.array(taus)
+    
+    def update(self):
+        taus = self.tau()
+        tausum = np.sum(taus, axis=0)
+        tausumwdata = np.sum(taus*np.tile(self.data, (np.shape(taus)[1], 1)).T, axis=0)
+        self.pi = tausum / len(self.data)
+        self.l = tausumwdata / tausum
+        
+    def fit(self):
+        self.initialise()
+        for i in range(self.maxiter):
+            self.update()
+    
+    def graph(self):
+        freq = self.counts/np.sum(self.counts)
+        model = self.PMM()
+        xaxis = np.arange(0, len(self.counts))
+        plt.plot(xaxis, freq, 'o', label="Data")
+        plt.plot(xaxis, model, 'o', color='red', label="Model")
+        title = "Mixture of " + str(self.g) + " Poissons"
+        plt.title(title)
+        plt.xlabel("Events in Fixed Time Interval")
+        plt.ylabel("Frequency")
+        plt.legend()
+        plt.show()
+        
+        
+        
+        
+        
+        
+#Made up data
+counts = np.array([162,267,271,185,140,122, 104, 125, 143,167,140, 122, 98,42,8,1])
 
-#plotting
-freq = counts/np.sum(counts)
-model = []
-xaxis = []
-for i in range(len(counts)):
-    xaxis.append(i)
-    model.append(PMM(pi,l,[i]))
-
-plt.plot(xaxis, freq, 'o', label="Data")
-plt.plot(xaxis, model, 'o', color='red', label="Model")
-plt.title("Mixture of Two Poissons")
-plt.legend()
-plt.show()
+#Model fitting
+m = PMM(counts)
+m.initialise()
+print("Theta 0:", m.pi,m.l)
+m.fit()
+m.graph()
+print("Theta 10:", m.pi,m.l)
